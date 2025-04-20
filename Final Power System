@@ -57,6 +57,13 @@ local function dash()
 	local blur = Instance.new("BlurEffect", game:GetService("Lighting"))
 	blur.Size = 20
 	Debris:AddItem(blur, 0.3)
+	
+	local bloom = Instance.new("BloomEffect")
+	bloom.Intensity = 2
+	bloom.Size = 56
+	bloom.Threshold = 2
+	bloom.Parent = game:GetService("Lighting")
+	Debris:AddItem(bloom, 0.4)
 
 	local trail = Instance.new("Trail")
 	trail.Attachment0 = Instance.new("Attachment", root)
@@ -118,6 +125,14 @@ local function activateShield()
 	aura.LightEmission = 1
 	aura.Parent = shield
 	Debris:AddItem(aura, shieldDuration)
+	
+	local shieldBloom = Instance.new("ColorCorrectionEffect")
+	shieldBloom.Brightness = 0.2
+	shieldBloom.Contrast = 0.3
+	shieldBloom.Saturation = 1
+	shieldBloom.TintColor = Color3.fromRGB(100, 200, 255)
+	shieldBloom.Parent = game:GetService("Lighting")
+	Debris:AddItem(shieldBloom, shieldDuration)
 
 	local tag = Instance.new("BoolValue")
 	tag.Name = "Shielded"
