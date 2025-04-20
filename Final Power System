@@ -1,0 +1,231 @@
+
+-- Final Power System (Single LocalScript)
+-- Luau Scripter Discord Role Submission Project
+-- Author: @parizeryoutube
+-- Lines of executable code: 200+
+
+--// SERVICES
+local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
+local Debris = game:GetService("Debris")
+local TweenService = game:GetService("TweenService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+
+local player = Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+
+--// STATE VARIABLES
+local charging = false
+local chargeStart = 0
+local canDash = true
+local canShield = true
+local cooldowns = {Dash = 3, Shield = 6}
+local shieldDuration = 3
+local lastDash = 0
+local lastShield = 0
+
+--// GUI FOR SHIELD COOLDOWN
+local gui = Instance.new("ScreenGui")
+gui.Name = "PowerHUD"
+gui.ResetOnSpawn = false
+gui.Parent = player:WaitForChild("PlayerGui")
+
+local shieldBar = Instance.new("Frame")
+shieldBar.Size = UDim2.new(0, 200, 0, 20)
+shieldBar.Position = UDim2.new(0.5, -100, 0.92, 0)
+shieldBar.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+shieldBar.BorderSizePixel = 0
+shieldBar.AnchorPoint = Vector2.new(0.5, 0)
+shieldBar.Visible = false
+shieldBar.Parent = gui
+
+local shieldFill = Instance.new("Frame")
+shieldFill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+shieldFill.BorderSizePixel = 0
+shieldFill.Size = UDim2.new(1, 0, 1, 0)
+shieldFill.Parent = shieldBar
+
+--// DASH FUNCTION
+local function dash()
+	if not canDash then return end
+	canDash = false
+	lastDash = tick()
+
+	local root = character:WaitForChild("HumanoidRootPart")
+
+	local blur = Instance.new("BlurEffect", game:GetService("Lighting"))
+	blur.Size = 20
+	Debris:AddItem(blur, 0.3)
+
+	local trail = Instance.new("Trail")
+	trail.Attachment0 = Instance.new("Attachment", root)
+	trail.Attachment1 = Instance.new("Attachment", root)
+	trail.Color = ColorSequence.new(Color3.new(1,1,1))
+	trail.Lifetime = 0.2
+	trail.Parent = root
+	Debris:AddItem(trail, 0.3)
+
+	local sfx = Instance.new("Sound", root)
+	sfx.SoundId = "rbxassetid://12221967"
+	sfx.Volume = 2
+	sfx:Play()
+	Debris:AddItem(sfx, 1)
+
+	local velocity = Instance.new("BodyVelocity")
+	velocity.Velocity = root.CFrame.LookVector * 120
+	velocity.MaxForce = Vector3.new(1, 0, 1) * 1e6
+	velocity.Parent = root
+	Debris:AddItem(velocity, 0.2)
+
+	task.delay(cooldowns.Dash, function()
+		canDash = true
+	end)
+end
+
+--// SHIELD FUNCTION
+local function activateShield()
+	if not canShield then return end
+	canShield = false
+	lastShield = tick()
+	shieldBar.Visible = true
+	shieldFill.Size = UDim2.new(1, 0, 1, 0)
+
+	local root = character:WaitForChild("HumanoidRootPart")
+
+	local shield = Instance.new("Part")
+	shield.Name = "Shield"
+	shield.Shape = Enum.PartType.Ball
+	shield.Size = Vector3.new(8,8,8)
+	shield.Anchored = false
+	shield.CanCollide = false
+	shield.Material = Enum.Material.ForceField
+	shield.Color = Color3.fromRGB(0, 170, 255)
+	shield.CFrame = root.CFrame
+	shield.Parent = workspace
+
+	local weld = Instance.new("WeldConstraint")
+	weld.Part0 = root
+	weld.Part1 = shield
+	weld.Parent = shield
+
+	local aura = Instance.new("ParticleEmitter")
+	aura.Texture = "rbxassetid://30114556"
+	aura.Rate = 40
+	aura.Lifetime = NumberRange.new(0.4)
+	aura.Size = NumberSequence.new(2)
+	aura.Speed = NumberRange.new(0)
+	aura.LightEmission = 1
+	aura.Parent = shield
+	Debris:AddItem(aura, shieldDuration)
+
+	local tag = Instance.new("BoolValue")
+	tag.Name = "Shielded"
+	tag.Parent = character
+	Debris:AddItem(tag, shieldDuration)
+	Debris:AddItem(shield, shieldDuration)
+
+	TweenService:Create(shieldFill, TweenInfo.new(cooldowns.Shield), {Size = UDim2.new(0, 0, 1, 0)}):Play()
+
+	task.delay(cooldowns.Shield, function()
+		canShield = true
+		shieldBar.Visible = false
+	end)
+end
+
+--// FIREBALL FUNCTION
+local function launchFireball(chargeTime)
+	local root = character:WaitForChild("HumanoidRootPart")
+	local cam = workspace.CurrentCamera
+
+	local fireball = Instance.new("Part")
+	fireball.Shape = Enum.PartType.Ball
+	fireball.Size = Vector3.new(2,2,2)
+	fireball.Material = Enum.Material.Neon
+	fireball.Color = Color3.fromRGB(255, 85, 0)
+	fireball.CFrame = root.CFrame + root.CFrame.LookVector * 3
+	fireball.CanCollide = false
+	fireball.Anchored = false
+	fireball.Name = "Fireball"
+	fireball.Parent = workspace
+
+	local trail = Instance.new("Trail")
+	trail.Attachment0 = Instance.new("Attachment", fireball)
+	trail.Attachment1 = Instance.new("Attachment", fireball)
+	trail.Color = ColorSequence.new(Color3.fromRGB(255, 50, 0))
+	trail.Lifetime = 0.3
+	trail.Transparency = NumberSequence.new(0.2)
+	trail.Parent = fireball
+
+	local t = math.clamp(chargeTime, 0.2, 3)
+	local pct = (t - 0.2) / (3 - 0.2)
+	local speed = 100 + (300 - 100) * pct
+
+	local bodyVel = Instance.new("BodyVelocity")
+	bodyVel.Velocity = root.CFrame.LookVector * speed
+	bodyVel.MaxForce = Vector3.new(1,1,1) * 1e6
+	bodyVel.Parent = fireball
+	Debris:AddItem(bodyVel, 1.5)
+
+	local touched = false
+	fireball.Touched:Connect(function(hit)
+		if touched then return end
+		if hit:IsDescendantOf(character) then return end
+
+		touched = true
+
+		local model = hit:FindFirstAncestorWhichIsA("Model")
+		if model and model:FindFirstChild("Humanoid") and not model:FindFirstChild("Shielded") then
+			model.Humanoid:TakeDamage(25)
+		end
+
+		local boom = Instance.new("Explosion")
+		boom.Position = fireball.Position
+		boom.BlastRadius = 10
+		boom.BlastPressure = 0
+		boom.Parent = workspace
+
+		local sfx = Instance.new("Sound", fireball)
+		sfx.SoundId = "rbxassetid://138186576"
+		sfx.Volume = 2
+		sfx:Play()
+		sfx.Ended:Connect(function() sfx:Destroy() end)
+
+		fireball:Destroy()
+
+		local start = tick()
+		RunService:BindToRenderStep("Shake", Enum.RenderPriority.Camera.Value + 1, function()
+			local elapsed = tick() - start
+			if elapsed > 0.25 then
+				RunService:UnbindFromRenderStep("Shake")
+				return
+			end
+			cam.CFrame *= CFrame.new(math.random(-1,1)/20, math.random(-1,1)/20, 0)
+		end)
+	end)
+
+	Debris:AddItem(fireball, 5)
+end
+
+--// INPUT HANDLERS
+UserInputService.InputBegan:Connect(function(input, gpe)
+	if gpe then return end
+	if input.KeyCode == Enum.KeyCode.Q then
+		dash()
+	elseif input.KeyCode == Enum.KeyCode.R then
+		activateShield()
+	elseif input.KeyCode == Enum.KeyCode.E and not charging then
+		charging = true
+		chargeStart = tick()
+	end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	if input.KeyCode == Enum.KeyCode.E and charging then
+		charging = false
+		local chargeTime = tick() - chargeStart
+		if chargeTime >= 0.2 then
+			launchFireball(chargeTime)
+		end
+	end
+end)
