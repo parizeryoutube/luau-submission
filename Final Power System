@@ -133,7 +133,7 @@ local function activateShield()
 	end)
 end
 
---// FIREBALL FUNCTION
+--// FIREBALL FUNCTION (uses server-side damage)
 local function launchFireball(chargeTime)
 	local root = character:WaitForChild("HumanoidRootPart")
 	local cam = workspace.CurrentCamera
@@ -174,10 +174,8 @@ local function launchFireball(chargeTime)
 
 		touched = true
 
-		local model = hit:FindFirstAncestorWhichIsA("Model")
-		if model and model:FindFirstChild("Humanoid") and not model:FindFirstChild("Shielded") then
-			model.Humanoid:TakeDamage(25)
-		end
+		local event = ReplicatedStorage:WaitForChild("RequestFireballHit")
+		event:FireServer(hit)
 
 		local boom = Instance.new("Explosion")
 		boom.Position = fireball.Position
