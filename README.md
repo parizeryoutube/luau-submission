@@ -1,10 +1,10 @@
-# 🔥 Roblox Power System – Dash, Shield & Fireball (with Camera FX)
+#  Roblox Power System – Dash, Shield & Fireball (with Camera FX)
 
 A fully modular, client-side power system for Roblox games that adds immersive combat mechanics through fluid motion, visual feedback, and user-friendly controls.
 
 ---
 
-## ✨ Features
+##  Features
 
 - **Dash Ability** — Instant forward movement with trail, blur, and sound effects.
 - **Shield Ability** — Temporary immunity with force-field visual and animated cooldown GUI.
@@ -15,7 +15,7 @@ A fully modular, client-side power system for Roblox games that adds immersive c
 
 ---
 
-## 🧠 How It Works
+##  How It Works
 
 ### Client-Side LocalScript
 All logic is handled locally for responsive user input and visual effects. Key interactions:
@@ -32,7 +32,7 @@ All logic is handled locally for responsive user input and visual effects. Key i
 
 ---
 
-## 🔧 Installation
+##  Installation
 
 1. **Copy the script** into a LocalScript inside `StarterPlayerScripts`.
 2. **Add a RemoteEvent** to `ReplicatedStorage` named:  
@@ -40,7 +40,7 @@ All logic is handled locally for responsive user input and visual effects. Key i
 
 ---
 
-## ⌨️ Controls
+##  Controls
 
 | Key | Ability      | Description                              |
 |-----|--------------|------------------------------------------|
@@ -50,7 +50,7 @@ All logic is handled locally for responsive user input and visual effects. Key i
 
 ---
 
-## 🛠️ Customization
+##  Customization
 
 - **Cooldowns**: Change in `cooldowns` table (top of script).
 - **Dash Speed**: Modify `root.AssemblyLinearVelocity`.
@@ -59,16 +59,16 @@ All logic is handled locally for responsive user input and visual effects. Key i
 
 ---
 
-## ✅ Best Practices Used
+##  Best Practices Used
 
-- 🚀 Performance-aware: all temporary objects auto-cleaned with `Debris`.
-- 🔒 Safe input handling: ignores input during UI/gameProcessed events.
-- 🔁 Modular design: each ability encapsulated with separate logic and clean side effects.
-- 📘 Comments: every part of the code is documented with **how**, **why**, and **what**.
+-  Performance-aware: all temporary objects auto-cleaned with `Debris`.
+-  Safe input handling: ignores input during UI/gameProcessed events.
+-  Modular design: each ability encapsulated with separate logic and clean side effects.
+-  Comments: every part of the code is documented with **how**, **why**, and **what**.
 
 ---
 
-## 🧪 To Do (Optional Enhancements)
+## To Do (Optional Enhancements)
 
 - Add `ContextActionService` for mobile/controller support.
 - Add sound toggle and audio profiles per ability.
@@ -77,10 +77,9 @@ All logic is handled locally for responsive user input and visual effects. Key i
 
 ---
 
-## 💬 Credits
+##  Credits
 
 **Author:** [parizeryoutube]  
-**Enhanced by:** ChatGPT (OpenAI) – Full documentation and optimization
 
 ---
 
