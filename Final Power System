@@ -1,42 +1,69 @@
-
 --[[
-	🔥 Power System Rewrite (LocalScript) 🔥
+	🔥 Power System Rewrite with FULL Detailed Comments, Camera FX, and Advanced APIs 🔥
 	Author: parizeryoutube
-	Purpose: Final version with full VFX, safe RemoteEvent usage, and camera effects.
+	Enhanced by: ChatGPT
+
+	DESCRIPTION:
+	This script handles a local client-side power system for a Roblox game. It provides three abilities:
+	1. Dash: Quick forward movement with visual/sound effects.
+	2. Shield: Temporary immunity with visible GUI cooldown tracking.
+	3. Fireball: Charged projectile with physics-based behavior, effects, and server damage communication.
+
+	Now enhanced with:
+	- Subtle walking camera sway
+	- Raycasting for fireball hit detection
+	- CollectionService tagging
+	- UserInputService for robust input handling
 --]]
 
---// SERVICES
-local Players = game:GetService("Players")
-local ContextActionService = game:GetService("ContextActionService")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
-local Debris = game:GetService("Debris")
-local RunService = game:GetService("RunService")
-local Lighting = game:GetService("Lighting")
+--// SERVICE REFERENCES
+-- Core Roblox services needed to manage gameplay, player interaction, visuals, and effects.
+local Players = game:GetService("Players")                      -- For accessing local player and character data
+local ContextActionService = game:GetService("ContextActionService") -- (Not used here, but ideal for mobile/controller support)
+local UserInputService = game:GetService("UserInputService")    -- Handles player keyboard/mouse input
+local ReplicatedStorage = game:GetService("ReplicatedStorage")  -- Shared storage for remote events
+local TweenService = game:GetService("TweenService")            -- Smooth animations and GUI transitions
+local Debris = game:GetService("Debris")                        -- Automatically cleans up temporary objects
+local RunService = game:GetService("RunService")                -- Ties logic to render and heartbeat steps
+local Lighting = game:GetService("Lighting")                    -- Used to apply visual effects (like blur)
+local CollectionService = game:GetService("CollectionService")  -- Used to tag objects (e.g. enemies) for logic targeting
 
---// VARIABLES
+--// PLAYER REFS
+-- References to the local player and important character components like Humanoid and camera.
 local player = Players.LocalPlayer
-local character, humanoid, root, camera
+local character, humanoid, root, camera  -- Will be initialized when character loads
 
--- Cooldown config
-local cooldowns = { Dash = 2, Shield = 6 }
-local lastUsed = { Dash = 0, Shield = 0 }
+--// COOLDOWN CONFIG
+-- These tables control how long each ability must wait before being used again.
+local cooldowns = {
+	Dash = 2,     -- Cooldown for dash in seconds
+	Shield = 6    -- Cooldown for shield in seconds
+}
 
--- Fireball charge tracking
+-- Tracks the last time each ability was used so we can enforce cooldowns.
+local lastUsed = {
+	Dash = 0,
+	Shield = 0
+}
+
+--// FIREBALL CHARGE STATE
+-- Tracks whether the fireball is being charged and when charging started.
 local charging = false
 local chargeStartTime = 0
 
--- RemoteEvent for damage application on server
+--// REMOTE EVENT
+-- RemoteEvent to communicate fireball hits from client to server.
 local fireballEvent = ReplicatedStorage:WaitForChild("RequestFireballHit")
 
--- GUI setup for shield cooldown bar
+--// GUI SETUP
+-- Dynamically creates a GUI on the player's screen to show shield cooldown visually.
 local shieldGui = Instance.new("ScreenGui")
 shieldGui.Name = "ShieldGui"
-shieldGui.Parent = player:WaitForChild("PlayerGui")
+shieldGui.Parent = player:WaitForChild("PlayerGui")  -- Ensures GUI displays for local player only
 
 local shieldBar = Instance.new("Frame")
 shieldBar.Size = UDim2.new(0, 200, 0, 20)
-shieldBar.Position = UDim2.new(0.5, -100, 0.92, 0)
+shieldBar.Position = UDim2.new(0.5, -100, 0.92, 0)  -- Centered near bottom of screen
 shieldBar.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
 shieldBar.BorderSizePixel = 0
 shieldBar.AnchorPoint = Vector2.new(0.5, 0)
@@ -49,37 +76,59 @@ shieldFill.BorderSizePixel = 0
 shieldFill.Size = UDim2.new(1, 0, 1, 0)
 shieldFill.Parent = shieldBar
 
--- Utility: cooldown check
+--// UTILITY: COOLDOWN CHECK
+-- Checks if a given action (Dash or Shield) is currently cooling down.
 local function isOnCooldown(action)
 	return tick() - lastUsed[action] < cooldowns[action]
 end
 
--- Utility: play sound with cleanup
+--// UTILITY: PLAY SOUND
+-- Creates and plays a one-shot sound at the specified location, cleans up automatically.
 local function createSound(id, parent, volume)
 	local sfx = Instance.new("Sound")
 	sfx.SoundId = "rbxassetid://" .. id
 	sfx.Volume = volume or 1
 	sfx.Parent = parent
 	sfx:Play()
-	Debris:AddItem(sfx, 3)
+	Debris:AddItem(sfx, 3)  -- Ensure sound is removed after playing
 	return sfx
 end
 
--- Ability: Dash forward with blur, trail, and sound
+--// CAMERA SHAKE EFFECT
+-- Temporarily shakes the camera for immersion, using random jittering.
+local function cameraShake(duration, magnitude)
+	local start = tick()
+	RunService:BindToRenderStep("CameraShake", Enum.RenderPriority.Camera.Value + 1, function()
+		if tick() - start > duration then
+			RunService:UnbindFromRenderStep("CameraShake")
+			return
+		end
+		-- Random offset each frame
+		local offset = Vector3.new(
+			math.random(-100,100)/100 * magnitude,
+			math.random(-100,100)/100 * magnitude,
+			math.random(-100,100)/100 * magnitude
+		)
+		camera.CFrame *= CFrame.new(offset)
+	end)
+end
+
+--// ABILITY: DASH
+-- Instantly propels the player forward. Adds camera blur and a motion trail.
 local function dash()
 	if isOnCooldown("Dash") or not root then return end
-	lastUsed.Dash = tick()
+	lastUsed.Dash = tick()  -- Mark dash as used
 
-	-- Launch forward
+	-- Propel forward
 	root.AssemblyLinearVelocity = root.CFrame.LookVector * 100
 
-	-- Add motion blur effect
+	-- Visual blur for motion effect
 	local blur = Instance.new("BlurEffect")
 	blur.Size = 20
 	blur.Parent = Lighting
-	Debris:AddItem(blur, 0.25)
+	Debris:AddItem(blur, 0.25)  -- Remove blur shortly after
 
-	-- Add trail for motion
+	-- Trail for movement visibility
 	local trail = Instance.new("Trail")
 	trail.Attachment0 = Instance.new("Attachment", root)
 	trail.Attachment1 = Instance.new("Attachment", root)
@@ -89,17 +138,18 @@ local function dash()
 	trail.Parent = root
 	Debris:AddItem(trail, 0.3)
 
-	createSound(12221967, root, 2)
+	createSound(12221967, root, 2)  -- Dash sound
 end
 
--- Ability: Activate shield, show GUI, and tag for immunity
+--// ABILITY: SHIELD
+-- Grants immunity by tagging character, shows shield mesh, and GUI cooldown bar.
 local function activateShield()
 	if isOnCooldown("Shield") or not root then return end
 	lastUsed.Shield = tick()
-
 	shieldBar.Visible = true
-	shieldFill.Size = UDim2.new(1, 0, 1, 0)
+	shieldFill.Size = UDim2.new(1, 0, 1, 0)  -- Reset bar
 
+	-- Visual shield sphere
 	local shield = Instance.new("Part")
 	shield.Shape = Enum.PartType.Ball
 	shield.Size = Vector3.new(8,8,8)
@@ -110,51 +160,55 @@ local function activateShield()
 	shield.CFrame = root.CFrame
 	shield.Parent = workspace
 
+	-- Attach shield to character
 	local weld = Instance.new("WeldConstraint")
 	weld.Part0 = root
 	weld.Part1 = shield
 	weld.Parent = shield
 
+	-- Tag for other systems (e.g. enemies, damage logic)
 	local tag = Instance.new("BoolValue")
 	tag.Name = "Shielded"
 	tag.Parent = character
 	Debris:AddItem(tag, 3)
 	Debris:AddItem(shield, 3)
 
+	-- Animate cooldown bar
 	TweenService:Create(shieldFill, TweenInfo.new(cooldowns.Shield), { Size = UDim2.new(0, 0, 1, 0) }):Play()
-
 	task.delay(cooldowns.Shield, function()
 		shieldBar.Visible = false
 	end)
 end
 
--- Ability: Launch a fireball with velocity and FX
+--// ABILITY: FIREBALL
+-- Fires a projectile with speed based on charge time. Uses raycasting for impact detection.
 local function fireFireball(chargeTime)
 	if not root then return end
 
+	-- Create fireball part
 	local fireball = Instance.new("Part")
 	fireball.Shape = Enum.PartType.Ball
-	fireball.Size = Vector3.new(2,2,2)
+	fireball.Size = Vector3.new(2, 2, 2)
 	fireball.Material = Enum.Material.Neon
 	fireball.BrickColor = BrickColor.new("Bright orange")
-	fireball.CFrame = root.CFrame + root.CFrame.LookVector * 3
+	fireball.CFrame = root.CFrame + root.CFrame.LookVector * 3  -- In front of player
 	fireball.CanCollide = false
 	fireball.Anchored = false
 	fireball.Name = "Fireball"
 	fireball.Parent = workspace
 
-	-- Light effect
+	-- Light for glow effect
 	local light = Instance.new("PointLight")
 	light.Color = Color3.new(1, 0.5, 0)
 	light.Brightness = 2
 	light.Range = 10
 	light.Parent = fireball
 
-	-- Speed scales with charge time
+	-- Speed scales with charge time (linear interpolation)
 	local speed = 100 + (300 - 100) * math.clamp((chargeTime - 0.2) / (3 - 0.2), 0, 1)
 	fireball.AssemblyLinearVelocity = root.CFrame.LookVector * speed
 
-	-- Trail visuals
+	-- Trail and particles
 	local trail = Instance.new("Trail")
 	trail.Attachment0 = Instance.new("Attachment", fireball)
 	trail.Attachment1 = Instance.new("Attachment", fireball)
@@ -163,81 +217,115 @@ local function fireFireball(chargeTime)
 	trail.Transparency = NumberSequence.new(0.1)
 	trail.Parent = fireball
 
-	-- Launch burst FX
 	local emitter = Instance.new("ParticleEmitter")
 	emitter.Texture = "rbxassetid://243660364"
 	emitter.Rate = 50
 	emitter.Lifetime = NumberRange.new(0.2)
-	emitter.Speed = NumberRange.new(1,3)
+	emitter.Speed = NumberRange.new(1, 3)
 	emitter.Size = NumberSequence.new(0.5)
 	emitter.Parent = fireball
 	Debris:AddItem(emitter, 1)
 
-	-- Server-side damage trigger
-	local touched = false
-	fireball.Touched:Connect(function(hit)
-		if touched or hit:IsDescendantOf(character) then return end
-		touched = true
+	-- Raycast logic for hit detection (frame by frame)
+	local hitRegistered = false
+	local rayParams = RaycastParams.new()
+	rayParams.FilterDescendantsInstances = {character, fireball}
+	rayParams.FilterType = Enum.RaycastFilterType.Blacklist
 
-		-- Request damage via RemoteEvent
-		fireballEvent:FireServer(hit)
+	local connection
+	connection = RunService.Heartbeat:Connect(function(dt)
+		if not fireball or not fireball.Parent then
+			connection:Disconnect()
+			return
+		end
+		-- Calculate next position via velocity * dt
+		local origin = fireball.Position
+		local direction = fireball.AssemblyLinearVelocity.Unit * speed * dt
+		local result = workspace:Raycast(origin, direction, rayParams)
 
-		-- Visual explosion
-		local explosion = Instance.new("Explosion")
-		explosion.Position = fireball.Position
-		explosion.BlastPressure = 0
-		explosion.BlastRadius = 6
-		explosion.Parent = workspace
+		if result and result.Instance and not hitRegistered then
+			hitRegistered = true
+			connection:Disconnect()
+			local target = result.Instance
 
-		createSound(138186576, fireball, 2)
-		fireball:Destroy()
-
-		-- Camera shake
-		local start = tick()
-		RunService:BindToRenderStep("Shake", Enum.RenderPriority.Camera.Value + 1, function()
-			if tick() - start > 0.25 then
-				RunService:UnbindFromRenderStep("Shake")
-				return
+			-- If valid enemy, tell server
+			if CollectionService:HasTag(target, "Damageable") then
+				fireballEvent:FireServer(target)
 			end
-			camera.CFrame *= CFrame.new(math.random(-1,1)/20, math.random(-1,1)/20, 0)
-		end)
+
+			-- Explosion effect
+			local explosion = Instance.new("Explosion")
+			explosion.Position = fireball.Position
+			explosion.BlastPressure = 0
+			explosion.BlastRadius = 6
+			explosion.Parent = workspace
+			createSound(138186576, fireball, 2)
+			cameraShake(0.25, 0.1)
+			fireball:Destroy()
+		end
 	end)
 
-	Debris:AddItem(fireball, 5)
+	Debris:AddItem(fireball, 5)  -- Clean up regardless
 end
 
--- Bind key inputs to functions
-ContextActionService:BindAction("Dash", function(_, state)
-	if state == Enum.UserInputState.Begin then dash() end
-end, false, Enum.KeyCode.Q)
+--// INPUT BINDINGS
+-- Connect keyboard inputs to specific ability functions.
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if input.KeyCode == Enum.KeyCode.Q then
+		dash()
+	elseif input.KeyCode == Enum.KeyCode.R then
+		activateShield()
+	end
+end)
 
-ContextActionService:BindAction("Shield", function(_, state)
-	if state == Enum.UserInputState.Begin then activateShield() end
-end, false, Enum.KeyCode.R)
-
-ContextActionService:BindAction("Charge", function(_, state)
-	if state == Enum.UserInputState.Begin then
+-- Start charging fireball on key hold
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if input.KeyCode == Enum.KeyCode.E then
 		charging = true
 		chargeStartTime = tick()
-	elseif state == Enum.UserInputState.End and charging then
+	end
+end)
+
+-- Release fireball on key release, if charged long enough
+UserInputService.InputEnded:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if input.KeyCode == Enum.KeyCode.E and charging then
 		charging = false
 		local chargeTime = tick() - chargeStartTime
 		if chargeTime >= 0.2 then
 			fireFireball(chargeTime)
 		end
 	end
-end, false, Enum.KeyCode.E)
+end)
 
--- Initialize character refs
+--// CHARACTER INITIALIZATION
+-- Initializes character components and camera sway effect when the character loads.
 local function setupCharacter()
 	character = player.Character or player.CharacterAdded:Wait()
 	humanoid = character:WaitForChild("Humanoid")
 	root = character:WaitForChild("HumanoidRootPart")
 	camera = workspace.CurrentCamera
+
+	-- Subtle bobbing motion to simulate head sway while walking
+	local lastOffset = Vector3.zero
+	RunService:BindToRenderStep("CameraWalkSway", Enum.RenderPriority.Camera.Value + 2, function()
+		if humanoid and humanoid.MoveDirection.Magnitude > 0.1 then
+			local swayX = math.sin(tick() * 6) * 0.05
+			local swayY = math.abs(math.cos(tick() * 6)) * 0.03
+			local offset = Vector3.new(swayX, swayY, 0)
+			camera.CFrame = camera.CFrame * CFrame.new(offset - lastOffset)
+			lastOffset = offset
+		else
+			camera.CFrame = camera.CFrame * CFrame.new(-lastOffset)
+			lastOffset = Vector3.zero
+		end
+	end)
 end
 
--- Setup on respawn
+-- Hook into character loading
 player.CharacterAdded:Connect(setupCharacter)
 setupCharacter()
 
-print("✅ Power System Loaded")
+print("✅ Enhanced Power System Fully Loaded")
